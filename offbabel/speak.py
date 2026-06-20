@@ -54,10 +54,22 @@ def parse_tags(raw):
 
 
 def get_llm():
-    """OpenAI client pointed at Exo (localhost:52415); set OFFBABEL_LLM_URL to use Ollama instead."""
+    """OpenAI client pointed at Exo (localhost:52415); set OFFBABEL_LLM_URL to use Ollama instead.
+
+    max_retries=0 + short timeout so that if no LLM is up the call fails fast to the stub
+    (otherwise the SDK retries a refused connection with backoff and the UI stalls).
+    """
+    import httpx
     from openai import OpenAI
 
-    return OpenAI(base_url=config.LLM_BASE_URL, api_key=config.LLM_API_KEY)
+    # short connect timeout -> fails fast to the stub when no LLM is up; generous total
+    # timeout so a real (slower, local) generation is not cut off.
+    return OpenAI(
+        base_url=config.LLM_BASE_URL,
+        api_key=config.LLM_API_KEY,
+        max_retries=0,
+        timeout=httpx.Timeout(30.0, connect=2.0),
+    )
 
 
 def tutor_turn(text, language, scenario=None, due_items=None):

@@ -66,7 +66,7 @@ export default function App() {
 
   const [stats, setStats] = useState({ words: 0, signs: 0 })
   const [review, setReview] = useState<ReviewItem[]>([])
-  const [summary] = useState(SAMPLE_SUMMARY)
+  const [summary, setSummary] = useState(SAMPLE_SUMMARY)
 
   const applyDetection = useCallback((label: string, conf: number, stable: boolean) => {
     setDetect({ label, conf, stable })
@@ -85,6 +85,14 @@ export default function App() {
       switch (m.type) {
         case "status":
           if (m.stats) setStats(m.stats)
+          if (m.summary) setSummary(m.summary)
+          break
+        case "summary":
+          if (m.summary) setSummary(m.summary)
+          break
+        case "targets":
+          hitsRef.current = m.count ?? 0
+          setHits(m.count ?? 0)
           break
         case "transcript":
           setTranscript((t) => [...t, { role: m.role, text: m.text }])
@@ -100,6 +108,7 @@ export default function App() {
           break
         case "progress":
           if (m.stats) setStats(m.stats)
+          if (m.summary) setSummary(m.summary)
           if (m.review) setReview(m.review)
           break
       }

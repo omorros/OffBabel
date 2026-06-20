@@ -15,11 +15,13 @@ from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import config, memory
+from .sign.engine import SignEngine
 
 WEB_DIR = os.path.join(config.BASE, "web")
 
 app = FastAPI()
 memory.init()
+sign_engine = SignEngine()
 
 # best-effort robot: a missing or offline robot must never crash the demo
 try:
@@ -89,8 +91,20 @@ async def handle(msg):
     t = msg.get("type")
 
     if t == "set_mode":
+        mode = msg.get("mode")
         await emote("idle")
-        await hub.send({"type": "mode", "mode": msg.get("mode")})
+        await hub.send({"type": "mode", "mode": mode})
+        # entering Sign mode starts the live webcam recognition stream; leaving stops it
+        if mode == "sign":
+            sign_engine.start(asyncio.get_running_loop(), hub.send)
+        else:
+            sign_engine.stop()
+
+    elif t in ("sign_start", "sign_stop"):
+        if t == "sign_start":
+            sign_engine.start(asyncio.get_running_loop(), hub.send)
+        else:
+            sign_engine.stop()
 
     elif t == "get_progress":
         await hub.send({"type": "progress", "stats": memory.stats(),

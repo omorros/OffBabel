@@ -30,14 +30,22 @@ REACHY_SSH_HOST = os.environ.get("OFFBABEL_REACHY_SSH", "pollen@reachy-mini.loca
 REACHY_CAM_WIDTH = int(os.environ.get("OFFBABEL_REACHY_CAM_W", "640"))
 REACHY_CAM_HEIGHT = int(os.environ.get("OFFBABEL_REACHY_CAM_H", "360"))
 REACHY_CAM_FPS = int(os.environ.get("OFFBABEL_REACHY_CAM_FPS", "30"))
+# The Reachy daemon owns /dev/video0; we POST .../media/release so rpicam-vid can acquire the camera,
+# and .../media/acquire to hand it back when the last viewer leaves. Set OFFBABEL_REACHY_DAEMON=""
+# to disable (e.g. if nothing else contends for the camera).
+REACHY_DAEMON_URL = os.environ.get("OFFBABEL_REACHY_DAEMON", "http://127.0.0.1:8000")
 
 # ---- LLM (Speak) ----
 # Exo on the Mac at :52415 is the demo engine; Ollama is the one-line fallback (also used by Cognee).
 EXO_BASE_URL = "http://localhost:52415/v1"
 OLLAMA_BASE_URL = "http://localhost:11434/v1"
 LLM_BASE_URL = os.environ.get("OFFBABEL_LLM_URL", EXO_BASE_URL)
-LLM_MODEL = os.environ.get("OFFBABEL_LLM_MODEL", "mlx-community/Qwen3-0.6B-4bit")
+LLM_MODEL = os.environ.get("OFFBABEL_LLM_MODEL", "mlx-community/gemma-4-e2b-it-4bit")
 LLM_API_KEY = os.environ.get("OFFBABEL_LLM_KEY", "offbabel")  # ignored by Exo/Ollama; must be non-empty
+# Gemma 4 / Qwen3 "think" before answering, which wastes the token budget (empty replies) and adds
+# latency. Exo honors reasoning_effort="none" to turn it off (verified). Set OFFBABEL_REASONING=""
+# to omit the field for a server/model that rejects it.
+LLM_REASONING_EFFORT = os.environ.get("OFFBABEL_REASONING", "none")
 
 # ---- STT / TTS ----
 WHISPER_SIZE = os.environ.get("OFFBABEL_WHISPER", "small")

@@ -14,6 +14,7 @@ is an enhancement, not a dependency).
 import subprocess
 import threading
 import time
+import urllib.request
 
 from . import config
 
@@ -21,6 +22,22 @@ JPEG_SOI = b"\xff\xd8"  # start-of-image marker
 JPEG_EOI = b"\xff\xd9"  # end-of-image marker
 
 _MAX_BUFFER = 4 * 1024 * 1024  # drop a runaway buffer if we never find a frame boundary (corrupt stream)
+
+
+def _daemon_media(action):
+    """POST to the Reachy daemon's media release/acquire. Best-effort: the daemon owns /dev/video0,
+    so we 'release' before rpicam-vid grabs the camera and 'acquire' to hand it back afterward.
+    Returns True on success. Never raises — a missing daemon must not break the stream path."""
+    base = config.REACHY_DAEMON_URL
+    if not base:
+        return False
+    try:
+        req = urllib.request.Request(f"{base}/api/media/{action}", method="POST")
+        with urllib.request.urlopen(req, timeout=5):  # noqa: S310 (localhost daemon, not arbitrary URL)
+            return True
+    except Exception as e:  # noqa: BLE001
+        print(f"reachy video: daemon media/{action} failed (ignored):", e)
+        return False
 
 
 class ReachyVideoStreamer:
@@ -66,6 +83,7 @@ class ReachyVideoStreamer:
             self.latest_frame = None
             self.last_frame_time = 0.0
             self.last_error = None
+            _daemon_media("release")  # the daemon owns the camera; free it so rpicam-vid can acquire
             try:
                 self._proc = subprocess.Popen(
                     self._command(),
@@ -98,6 +116,8 @@ class ReachyVideoStreamer:
                 proc.wait(timeout=2)
             except subprocess.TimeoutExpired:
                 proc.kill()
+        if proc is not None:
+            _daemon_media("acquire")  # hand the camera back to the daemon now that rpicam has stopped
 
     def add_client(self):
         """A browser connected: start the shared stream on the first viewer."""

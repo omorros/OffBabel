@@ -5,7 +5,9 @@
 **Event:** Localhost — On-Device Agent Hackathon · Dawn Capital, London · Sat 20 Jun 2026 (09:00–20:00)
 **The hard rule:** everything runs locally during the demo. No internet, no cloud calls — this is **pass/fail** for the event (see §2A).
 **The bet (say it out loud):** sign recognition is the differentiator and the risk; **Speak is the safety net.** We prove sign in the first 90 minutes and decide at the 13:00 gate.
-**⚠️ Name note:** "UnBabel" collides with **Unbabel** — an established Lisbon AI-translation company (YC '14, Microsoft/Salesforce-backed, tagline *"break down language barriers"*), squarely in this domain. The AI-engineer judges will likely recognise it, so it may read as derivative. Fine for a one-day hack, but consider an offline-forward twist that's yours: **OffBabel**, **Babel Offline**, or **Babel Mini** (ties to Reachy Mini). Decide on the day.
+**✅ Name — LOCKED: OffBabel.** "UnBabel" collides with **Unbabel** (established Lisbon AI-translation co., YC '14) — reads as derivative to AI-engineer judges. "OffBabel" is **unused** (web-checked) and reads as the deliberate *offline* twist. Use **OffBabel** everywhere.
+
+**✅ Demo machine — LOCKED: the teammate's Apple Silicon Mac.** It has both the Reachy *and* Exo-capable hardware, so it runs the **entire brain** (Exo, Whisper, Piper, MediaPipe, Cognee, backend, UI, Reachy). The **Windows laptop is the dev box + backup** — everything we build is portable Python + web, built on Windows, deployed/run on the Mac. **Exo cannot run on Windows** (no native, WSL broken), so the "distributed Exo cluster" flex is out; Exo stays **local on the Mac at `localhost:52415`**. Single-box demo (+ robot over LAN) = most demo-proof.
 
 ---
 
@@ -146,14 +148,25 @@ python -c "from faster_whisper import WhisperModel; WhisperModel('small', device
 #   es_ES-*   en_US-*   cs_CZ-jirka-*   (Czech is the locked third)
 # Test:  echo "hola, ¿cómo estás?" | piper -m es_ES-xxx.onnx -f out.wav
 
-# Exo (track partner) serves an OpenAI-compatible endpoint at localhost.
-# Start it, cache a small multilingual model (Qwen3-class), and GRAB THE PORT FROM ITS STARTUP LOG.
+# Exo (track partner) — RUNS ON THE MAC ONLY (no Windows/WSL). Confirmed facts (web-researched 20 Jun):
+#   • Install: NOT `pip install`. Clone repo, `brew install uv node`, install Rust nightly, then:  uv run exo
+#     (or `brew install --cask exo` for the prebuilt Mac app). Python 3.13.
+#   • Default port: 52415  (dashboard + API both). Read the startup log to confirm; do NOT assume 8000.
+#   • Endpoint paths: POST /v1/chat/completions (also /v1/messages Claude-style). api_key is ignored — pass any non-empty string.
+#   • Best model for us (tiny, multilingual incl. CZECH): mlx-community/Qwen3-0.6B-4bit  (~0.34 GB).
+#     Quality/vision fallback: mlx-community/Qwen3.5-2B-MLX-8bit (~2.66 GB).
+#   • OFFLINE: send one request per model on venue wifi to cache weights, then run with  EXO_OFFLINE=true  (also honors HF_HUB_OFFLINE=1). Nothing phones home in offline mode.
+#   • FALLBACK if Exo fights us: Ollama is already running for Cognee → point base_url at http://localhost:11434/v1 (one-line swap). Keep Exo for the prize; Ollama is the safety net.
 ```
 ```python
 from openai import OpenAI
-client = OpenAI(base_url="http://localhost:<EXO_PORT>/v1", api_key="not-needed")  # confirm port from Exo log
+client = OpenAI(base_url="http://localhost:52415/v1", api_key="exo")  # 52415 = Exo default; confirm from log
+resp = client.chat.completions.create(
+    model="mlx-community/Qwen3-0.6B-4bit",
+    messages=[{"role":"system","content":TUTOR_PROMPT},{"role":"user","content":user_text}],
+    stream=True)
 ```
-> Exo's default port shows in its startup log — read it there, don't hardcode a guess. The Exo reps are on-site; confirm the model string and endpoint with them early.
+> Exo's port shows in its startup log — confirm there. The Exo reps are on-site; confirm the model string early. **Prize play:** toggle airplane mode live with `EXO_OFFLINE=true` on screen — OffBabel keeps tutoring with zero internet.
 
 ---
 
@@ -188,6 +201,8 @@ laptop webcam (OpenCV)
 
 **Start tiny — suggested first set:** pick 5–8 letters whose BSL handshapes look least alike, then add the letters you need to spell your demo word. Spelling **H-E-L-L-O** needs **H, E, L, O** — make sure those four are rock-solid.
 
+> ⚠️ **The vowel trap (don't get caught by this).** BSL vowels A/E/I/O/U are all "active index touches a fingertip of the passive hand" — A=thumb, E=index, I=middle, O=ring, U=little. They are the **subtlest discrimination in the whole alphabet**, and HELLO needs **two of them (E and O)**. Consonants (H, L) are distinct handshapes and easy. **Test E-vs-O separation specifically** in the 12:30 spike. If vowels flap under venue light, switch the demo word to a **consonant-heavy backup** (e.g. a word using distinct handshapes) rather than fighting vowel geometry on stage.
+
 **Setup (laptop):**
 ```bash
 pip install mediapipe opencv-python scikit-learn numpy
@@ -215,7 +230,11 @@ pip install cognee
 
 ## 6. UI / screens
 
-One laptop web app (HTML/JS or React) ↔ local Python backend over **WebSocket** (mirrors the conversation-app pattern). **Accessibility matters** (Deaf-community angle): large type, high contrast, no audio-only cues.
+One laptop web app — **vanilla HTML/JS, NOT React** (no bundler = no build step, no CDN/offline failure surface) ↔ local Python backend over **WebSocket** (mirrors the conversation-app pattern). **Accessibility matters** (Deaf-community angle): large type, high contrast, no audio-only cues.
+
+> ⚠️ **Robot-absent fallback (build this in).** The Wireless robot link is the most fragile thing in the demo. The on-screen **avatar/presence indicator must carry the emotion** (listening/speaking/celebrate) so the AI still demos fully if the robot drops mid-pitch. **Robot = enhancement, not dependency.** Same WebSocket "emote" event drives both the robot `play_move` and the UI avatar — if the robot call fails, swallow it and let the UI react.
+
+> ⚠️ **One mode active at a time.** Sign-vision and Speak-inference never run simultaneously (the UI is mode-switched), so the Mac never has to run MediaPipe + Whisper + LLM + Piper all at once. State this — it's free resource-contention insurance on a single demo machine.
 
 - **Home / Mode Select:** app name + **"On-device · No internet"** badge; two big cards **Speak** / **Sign**; footer = current language + overall progress ("12 words · 8 signs").
 - **Speak:** Reachy presence indicator (calm/listening/speaking) mirroring the robot; transcript pane (chat bubbles, streaming); **correction strip** (`you said X → try Y`); push-to-talk button + text fallback; language selector.
@@ -277,15 +296,20 @@ with ReachyMini(connection_mode="network", media_backend="no_media") as mini:
 
 ---
 
-## 9. Sponsor / track mapping
+## 9. Sponsor / track mapping — the SWEEP (6 prizes: 4 real integrations + 2 framing plays)
 
-| Sponsor | Use | Status / action |
-|---|---|---|
-| **Exo** | Runs the Speak LLM offline at localhost. Core to the theme. | **Locked.** Confirm model string + port with reps early. |
-| **Cognee** | Local memory of struggled words/signs → adaptive review. | **Locked.** Must configure offline provider (see §5). |
-| **Captur** | Sign recognition as on-device image validation. | **Bonus — ask reps for a desktop/Python path before depending on it.** If none, MediaPipe stands alone (it does). |
-| **Overmind** | Agent learning a new sign on-device from corrections. | **Stretch only.** |
-| Cosine / Zalos | — | Skip. |
+> Prize structure is **separate £500 sponsor tracks**, not one grand prize → optimise to *clearly win 2–3 tracks*, not "impress generally." All facts below web-researched 20 Jun.
+
+| Sponsor | £ | What we do | Real? | Prize-winning move |
+|---|---|---|---|---|
+| **Exo** | 500 | Tutor LLM on Exo's local OpenAI endpoint (`:52415`, Mac, `Qwen3-0.6B-4bit`). | ✅ Core | **Toggle airplane mode live** with `EXO_OFFLINE=true` on screen — keeps tutoring offline. 2-line `base_url` swap shows clean drop-in. |
+| **Cognee** | 500 | Memory graph of struggled items. SQLite for counts; **Cognee for graph insight**. | ✅ Core | `cognee.visualize_graph("graph.html")` live + **semantic cluster** ("you keep missing past-tense verbs"). Cross-session recall, fully offline. |
+| **Cosine** | 500 +£1500 cr | **Build OffBabel *with* Cosine CLI** (`winget install Cosine.CLI`, Windows ✅). Claim free 2M trial credits NOW. | ✅ Build tool | Route a self-contained module through `cos`; **capture diffs/recordings as evidence**; 30s live `cos` demo. "Build-with-it" is the intended qualification — confirm w/ rep. |
+| **Overmind** | 500 | **Optimise the tutor PROMPT** from real correction traces. CLI (`pipx install overmind`) driven via **Claude Code skills**. | ✅ Bonus 1–2h | Online in prep → ship hardened prompt into offline demo. Show **before/after on one real failure**: "62%→89%, zero regressions." (NOT the vision classifier — text agents only.) |
+| **Captur** | 500 | **No usable SDK** (mobile-only, enterprise-gated). MediaPipe stands alone. | ❌ Framing | Pitch BSL recognition as **on-device visual trust** — mirror their words: *on-device, real-time ms, validation, privacy*. "Captur-style trust layer for a new vertical." Talk to reps. |
+| **Zalos** | 500 | **No SDK** (YC F25, finance computer-use agents). Thin overlap. | ❌ Framing | Frame as **on-device, private, auditable perception→action loop**. Ask reps their criteria. |
+
+**Offline-config notes that matter:** Cognee defaults to OpenAI for *both* LLM and embeddings — override both (`LLM_PROVIDER=ollama`, `STRUCTURED_OUTPUT_FRAMEWORK="BAML"`, `EMBEDDING_PROVIDER=fastembed` or ollama). Watch the `LLM_API_KEY` empty-string bug (#807) — set a non-empty dummy. Pre-pull all Ollama/embedding models on wifi.
 
 ---
 

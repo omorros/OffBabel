@@ -43,12 +43,11 @@ export const SCENARIOS: Scenario[] = [
 ]
 
 export type SignLevel = { id: string; title: string; kind: "letters" | "words"; items: string[] }
-// Ids match offbabel/curriculum.py so the spaced-repetition engine groups them consistently.
+// The live classifier is trained on these letters (offbabel/data/sign_knn.joblib).
+// Keep this set in sync with whatever you captured + trained, so the app only asks for
+// letters the model actually knows.
 export const SIGN_LEVELS: SignLevel[] = [
-  { id: "L1_vowels", title: "Vowels", kind: "letters", items: ["A", "E", "I", "O", "U"] },
-  { id: "L2_distinct", title: "Letters", kind: "letters", items: ["B", "C", "L", "R", "T"] },
-  { id: "L3_words", title: "Words", kind: "words", items: ["HELLO", "CAT", "DOG"] },
-  { id: "L4_common", title: "Common", kind: "words", items: ["THANK", "NAME", "GOOD"] },
+  { id: "letters_abgw", title: "Letters", kind: "letters", items: ["A", "B", "G", "W"] },
 ]
 export function levelSequence(lv: SignLevel): string[] {
   return lv.kind === "words" ? lv.items[0].split("") : lv.items

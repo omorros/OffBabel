@@ -57,8 +57,8 @@ export default function App() {
   const [correction, setCorrection] = useState<Correction | null>(null)
 
   // Sign lesson state
-  const [signLevel, setSignLevel] = useState<SignLevel>(SIGN_LEVELS[2]) // Words (HELLO) by default
-  const seqRef = useRef<string[]>(levelSequence(SIGN_LEVELS[2]))
+  const [signLevel, setSignLevel] = useState<SignLevel>(SIGN_LEVELS[0])
+  const seqRef = useRef<string[]>(levelSequence(SIGN_LEVELS[0]))
   const [index, setIndex] = useState(0)
   const idxRef = useRef(0)
   const [detect, setDetect] = useState({ label: "-", conf: 0, stable: false })

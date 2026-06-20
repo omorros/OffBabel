@@ -34,6 +34,7 @@ class ReachyVideoStreamer:
         self._clients = 0
         self.latest_frame = None
         self.last_frame_time = 0.0
+        self.last_error = None  # last stderr line from ssh/rpicam, surfaced in status() for diagnosis
 
     def _command(self):
         remote = (
@@ -64,6 +65,7 @@ class ReachyVideoStreamer:
             self._stop.clear()
             self.latest_frame = None
             self.last_frame_time = 0.0
+            self.last_error = None
             try:
                 self._proc = subprocess.Popen(
                     self._command(),
@@ -74,10 +76,14 @@ class ReachyVideoStreamer:
                 )
             except Exception as e:  # noqa: BLE001
                 print("reachy video: failed to spawn ssh/rpicam (ignored):", e)
+                self.last_error = str(e)
                 self._proc = None
                 return
             self._reader = threading.Thread(target=self._read_loop, args=(self._proc,), daemon=True)
             self._reader.start()
+            # Drain stderr so an SSH/rpicam failure reason (e.g. "Permission denied") is captured
+            # for status() instead of being lost — and so a full stderr pipe can't block the child.
+            threading.Thread(target=self._drain_stderr, args=(self._proc,), daemon=True).start()
 
     def stop(self):
         """Terminate the stream and reader thread. Safe to call repeatedly."""
@@ -126,6 +132,7 @@ class ReachyVideoStreamer:
                 "width": config.REACHY_CAM_WIDTH,
                 "height": config.REACHY_CAM_HEIGHT,
                 "framerate": config.REACHY_CAM_FPS,
+                "last_error": self.last_error,
             }
 
     def _read_loop(self, proc):
@@ -161,6 +168,20 @@ class ReachyVideoStreamer:
             with self._lock:
                 if self._proc is proc:
                     self._proc = None
+
+    def _drain_stderr(self, proc):
+        """Capture ssh/rpicam stderr so the failure reason reaches status() (and isn't lost)."""
+        if proc.stderr is None:
+            return
+        try:
+            for raw in iter(proc.stderr.readline, b""):
+                line = raw.decode("utf-8", "replace").strip()
+                if line:
+                    with self._lock:
+                        self.last_error = line  # keep the most recent line (often the real reason)
+                    print("reachy video [ssh]:", line)
+        except Exception:  # noqa: BLE001
+            pass
 
 
 # Module-level singleton: one shared stream for the whole server.

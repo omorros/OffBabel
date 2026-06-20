@@ -228,6 +228,26 @@ pip install cognee
 
 ---
 
+## 5B. Learning model (the pedagogy, so it teaches and is not a toy)
+
+**Strategy (grounded in real science, name these to judges):**
+- **Spaced repetition** (Ebbinghaus -> Leitner -> Pimsleur -> Anki/Duolingo): items you miss come back sooner, items you master fade out.
+- **Retrieval practice** (testing effect): you learn by producing (speaking, signing), not by re-reading.
+- **Comprehensible input, i+1** (Krashen): the tutor speaks just above your level.
+- **Scenario scaffolding** (Babbel): practical situations, support that fades.
+- **CEFR A1-B1 + bite-size + light gamification** (Duolingo): streak, mastery bars, "due today".
+
+**Mechanics:** everything practiced is one **item** (a phrase in Speak, a letter/word in Sign), so both modes feed one shared memory. A session loops: review due items -> present new targets -> guided -> free -> wrap-up. Each attempt is scored right/wrong and updates a **Leitner box** (correct -> longer interval, miss -> back to box 1, box 5 = mastered). Speak: the tutor LLM steers toward target phrases and emits hidden `hit`/`miss` tags we parse. Sign: the classifier's correct/incorrect feeds the same scorer. Built in `offbabel/srs.py` + `offbabel/curriculum.py`.
+
+**Memory split (defensible architecture + the Cognee story):**
+- **SQLite = the scheduler / source of truth** (`srs.py`): exact box, miss_count, due date. Decides what to show and when. Deterministic, instant, trivially offline.
+- **Cognee = the semantic layer on top** (`cognee_memory.py`): a knowledge graph of the learner that answers what SQLite cannot, "what *kind* of things do you struggle with" (clusters like past-tense verbs or confusable signs), with a visualizable graph and cross-session recall. Local (Ollama + local embeddings), offline.
+- One line: **"SQLite is the metronome that schedules review; Cognee is the brain that understands what kind of learner you are, locally, no cloud."**
+
+**De-risk:** the SQLite SRS loop is the bulletproof spine; Cognee is the showcase on top. If Cognee's offline config fights us, the full learning experience still works and we demo the graph separately. Never bet the demo on the hardest dependency.
+
+---
+
 ## 6. UI / screens
 
 One laptop web app — **vanilla HTML/JS, NOT React** (no bundler = no build step, no CDN/offline failure surface) ↔ local Python backend over **WebSocket** (mirrors the conversation-app pattern). **Accessibility matters** (Deaf-community angle): large type, high contrast, no audio-only cues.

@@ -1,82 +1,108 @@
-# OffBabel
+<p align="center">
+  <img src="docs/img/mascot.png" alt="OffBabel" height="140">
+</p>
 
-On-device language tutor, fully offline. Two modes, one app:
+<h1 align="center">OffBabel</h1>
 
-- **Speak**: hold a spoken conversation in a target language and get corrected.
-- **Sign**: fingerspell BSL to the webcam and get instant "got it / try again."
+<p align="center"><b>One tool, two communities. An offline AI language tutor on a Reachy Mini robot.</b></p>
 
-Everything runs locally. No internet, no cloud. A Reachy Mini robot reacts and celebrates.
-Full plan, stress tests, and sponsor strategy live in `Bridge_PRD.md`.
+<p align="center">
+  <img alt="On-device" src="https://img.shields.io/badge/on--device-no%20internet-2ea44f">
+  <img alt="Python" src="https://img.shields.io/badge/Python-3.10-3776AB?logo=python&logoColor=white">
+  <img alt="React" src="https://img.shields.io/badge/UI-React%20%2B%20shadcn-111?logo=react">
+  <img alt="LLM" src="https://img.shields.io/badge/LLM-Exo%20(local)-orange">
+  <img alt="Robot" src="https://img.shields.io/badge/robot-Reachy%20Mini-ff5a00">
+</p>
 
-## Machines
+OffBabel teaches a language two ways, and it runs entirely on the device with no internet:
 
-- **Mac (demo machine)**: runs everything heavy. Exo (LLM), faster-whisper, Piper, MediaPipe,
-  Cognee, the backend, the UI, and the Reachy connection. The demo runs here.
-- **Windows (dev box)**: builds the portable Python + web. Used to develop and to record BSL data.
+- **Speak**: talk with Reachy in Spanish or English. It replies, corrects your mistakes gently, and keeps the conversation going. You can do it hands-free, no screen needed.
+- **Sign**: fingerspell British Sign Language to the webcam. It recognises your letters on-device and Reachy celebrates when you get them.
 
-Exo does not run on Windows, so the LLM lives on the Mac at `localhost:52415` (Ollama is the
-one-line fallback via `OFFBABEL_LLM_URL`).
+Everything (speech recognition, the tutor model, sign recognition, memory) runs locally. Your learning data never leaves the device.
 
-## Setup (both machines, on wifi, before going offline)
+## Screenshots
 
+| Home | Speak |
+|---|---|
+| ![Home](docs/img/home.png) | ![Speak](docs/img/speak.png) |
+| **Progress** | **Review sheet** |
+| ![Progress](docs/img/progress.png) | ![Review sheet](docs/img/summary.png) |
+
+## How it works
+
+```mermaid
+flowchart TB
+  subgraph dev["Your device, fully offline"]
+    ui["Web UI<br/>React + shadcn"]
+    srv["Python server<br/>WebSocket"]
+    llm["Exo<br/>local LLM tutor"]
+    stt["faster-whisper<br/>speech to text"]
+    sign["MediaPipe + KNN<br/>BSL recognition"]
+    mem["SQLite + Cognee<br/>memory"]
+  end
+  reachy["Reachy Mini<br/>voice + reactions"]
+  ui <-->|live captions| srv
+  srv --> llm
+  srv --> stt
+  srv --> sign
+  srv --> mem
+  srv --> reachy
 ```
+
+## The learning loop
+
+```mermaid
+flowchart LR
+  A["You speak<br/>or sign"] --> B["Whisper / MediaPipe<br/>on-device"]
+  B --> C["Tutor on Exo<br/>reply + correction"]
+  C --> D["Reachy speaks<br/>captions on screen"]
+  C --> E["Mistakes saved<br/>SQLite + Cognee"]
+  E --> F["Spaced review<br/>+ PDF summary"]
+  F --> A
+```
+
+Each mistake is logged locally and resurfaces later with spaced repetition. At the end of a session you can save a **practice summary as a PDF**.
+
+## How we use the track partners' tech
+
+- **Exo** runs the tutor language model **locally** on the Mac, exposing an OpenAI-compatible endpoint at `:52415`. The whole conversation, replies and grammar corrections, happens on-device. Swapping a cloud API for Exo is a one-line `base_url` change, and we prove it with the network switched off.
+- **Cognee** is our memory engine. On top of a SQLite store of every struggled word and sign, Cognee builds a local knowledge graph so it can reason about *what kind* of things a learner finds hard, not just count them, and draw a picture of their memory. It runs offline with a local model and in-process embeddings.
+- **Cosine**: we used the Cosine coding agent to help build OffBabel.
+- **Reachy Mini (Pollen Robotics)**: the robot is the tutor's voice and presence. It speaks the replies and reacts with head and antenna movement, which makes a screen-free, talk-to-it tutor possible.
+
+## Run it
+
+```bash
+# 1. build the web UI (served by the backend)
+cd offbabel-ui && npm install && npm run build && cd ..
+
+# 2. install the backend
 pip install -r offbabel/requirements.txt
+
+# 3. run it (point the tutor at a local LLM)
+#    Mac demo machine: Exo at :52415  ·  dev box: Ollama
+OFFBABEL_LLM_URL=http://localhost:11434/v1 OFFBABEL_LLM_MODEL=qwen2.5:3b python -m offbabel.server
+# open http://localhost:8500
 ```
 
-Then cache models per `Bridge_PRD.md` section 11 (Exo model, Whisper small, Piper voices,
-MediaPipe, Reachy emotions library, Ollama + Cognee). After caching set
-`HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1`.
+Check any machine is ready with `python -m offbabel.doctor`.
 
-**Verify any machine (do this on the Mac):**
+### Sign mode (train it on the demo machine)
+
+```bash
+python -m offbabel.sign.capture --letters A,B,G,W --per 60   # record your handshapes
+python -m offbabel.sign.train                                # build the classifier
+python -m offbabel.sign.live                                 # test it live
 ```
-python -m offbabel.doctor
-```
-Prints OK/MISS per dependency and a readiness summary per mode. The `hand_landmarker.task`
-model is vendored in the repo, so it is present after a clone/pull, no download needed.
-
-Mac notes: mediapipe, faster-whisper (ctranslate2), opencv all have Apple Silicon wheels. If
-`sounddevice` fails to import, `brew install portaudio`. macOS will prompt for camera and mic
-permission the first time the app uses them (grant it to the terminal/IDE).
-
-## Run
-
-```
-# the app (serves UI + WebSocket, all localhost)
-python -m offbabel.server
-# open http://127.0.0.1:8500   (Chrome --kiosk for the demo)
-```
-
-### Sign mode (the 13:00 gate)
-```
-python -m offbabel.sign.capture   # record ~30-50 samples per letter, both hands, venue light
-python -m offbabel.sign.train     # holdout accuracy + the E/O vowel-trap report
-python -m offbabel.sign.live      # standalone live test
-```
-In the app, entering Sign mode starts the live webcam stream automatically.
-
-### Speak mode (Mac)
-Fill in the TODOs in `offbabel/speak.py` (faster-whisper + Piper local paths), then wire
-`tutor_turn()` into the server's `speak_text` handler as documented in that file.
-
-### Memory
-SQLite is the source of truth (`offbabel/memory.py`), always on. Cognee is the additive sponsor
-layer (`offbabel/cognee_memory.py`); configure it offline per the header in that file.
 
 ## Layout
 
 ```
-offbabel/
-  server.py          backend: serves UI + WebSocket hub + emote contract
-  config.py          ports, model ids, paths, offline flags (all env-overridable)
-  memory.py          SQLite struggle store + needs-review list
-  cognee_memory.py   Cognee graph layer (sponsor bonus, offline-configured)
-  speak.py           Speak loop scaffold (Mac): Whisper -> Exo -> Piper
-  robot.py           Reachy wrapper, best-effort (no-op if robot absent)
-  sign/
-    landmarks.py     normalize MediaPipe hands -> 126-d feature vector
-    capture.py       record labeled landmark samples
-    train.py         KNN train + holdout + vowel-trap check
-    live.py          standalone live detection
-    engine.py        background webcam stream -> WebSocket detections
-  web/               vanilla HTML/JS/CSS UI (no CDN, offline-safe)
+offbabel/          backend: server, tutor, sign pipeline, spaced-repetition memory, robot wrapper
+offbabel-ui/       the web app (React + Tailwind + shadcn), built to dist/ and served by the backend
+speech_to_agent/   standalone Speak spike + the Reachy speaker (robot voice)
+docs/              screenshots and notes
 ```
+
+Built at the Localhost On-Device Agent Hackathon, London.

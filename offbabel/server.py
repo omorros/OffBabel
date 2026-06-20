@@ -111,18 +111,33 @@ async def handle(msg):
                         "review": memory.needs_review()})
 
     elif t == "speak_text":
-        # STUB until the Speak leg lands: echo the user, fake a tutor reply + correction.
+        # Real tutor if an LLM endpoint is reachable (Exo :52415 or Ollama); graceful stub if not.
         text = msg.get("text", "")
         lang = msg.get("language", "es")
         await emote("listening")
         await hub.send({"type": "transcript", "role": "user", "text": text})
-        await asyncio.sleep(0.3)
         await emote("speaking")
-        await hub.send({"type": "transcript", "role": "tutor",
-                        "text": "(reply will come from Exo)"})
-        await hub.send({"type": "correction", "wrong": text, "right": text,
-                        "note": "(corrections will come from the tutor LLM)"})
-        memory.log_seen("word", lang, text[:40] or "phrase")
+
+        data = None
+        try:
+            from . import speak
+            data = await asyncio.to_thread(speak.tutor_turn, text, lang)
+        except Exception as e:  # noqa: BLE001
+            print("tutor LLM unavailable, using stub:", e)
+
+        if data:
+            await hub.send({"type": "transcript", "role": "tutor",
+                            "text": data.get("reply", "")})
+            corr = data.get("correction")
+            if corr:
+                await hub.send({"type": "correction", **corr})
+                memory.log_miss("word", lang, str(corr.get("wrong", ""))[:40] or "phrase")
+            else:
+                memory.log_seen("word", lang, text[:40] or "phrase")
+        else:
+            await hub.send({"type": "transcript", "role": "tutor",
+                            "text": "(tutor LLM offline: start Exo on :52415 or Ollama)"})
+            memory.log_seen("word", lang, text[:40] or "phrase")
 
     elif t == "sign_demo_letter":
         # STUB: click-test the spelling UI before the classifier is wired.

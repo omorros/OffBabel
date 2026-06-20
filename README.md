@@ -27,6 +27,17 @@ Then cache models per `Bridge_PRD.md` section 11 (Exo model, Whisper small, Pipe
 MediaPipe, Reachy emotions library, Ollama + Cognee). After caching set
 `HF_HUB_OFFLINE=1` and `TRANSFORMERS_OFFLINE=1`.
 
+**Verify any machine (do this on the Mac):**
+```
+python -m offbabel.doctor
+```
+Prints OK/MISS per dependency and a readiness summary per mode. The `hand_landmarker.task`
+model is vendored in the repo, so it is present after a clone/pull, no download needed.
+
+Mac notes: mediapipe, faster-whisper (ctranslate2), opencv all have Apple Silicon wheels. If
+`sounddevice` fails to import, `brew install portaudio`. macOS will prompt for camera and mic
+permission the first time the app uses them (grant it to the terminal/IDE).
+
 ## Run
 
 ```
